@@ -4,8 +4,7 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from functools import wraps, partial
 from multiprocessing.pool import ThreadPool
 from inspect import isgeneratorfunction
-from overload import overload
-from strict_functions import strict_globals
+from strict_functions import strict_globals, overload
 
 def queued(fn, workers=1):
     assert callable(fn), 'fn needs to be callable'

@@ -2,7 +2,7 @@ from distutils.core import setup
 setup(
   name = 'queued',
   packages = ['queued'], # this must be the same as the name above
-  version = '2018.1.31',
+  version = '2018.2.16',
   install_requires = ["strict_functions"],
   description = 'simple function decorators that make python functions and generators queued and async for nonblocking operations',
   author = 'Cody Kochmann',
