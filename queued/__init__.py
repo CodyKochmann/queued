@@ -3,33 +3,73 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
 from functools import wraps, partial
 from multiprocessing.pool import ThreadPool
+from threading import Thread, Lock
 from inspect import isgeneratorfunction
 from strict_functions import strict_globals, overload
 from greater_context import logged_exceptions
 import logging
 import atexit
 from time import sleep
-from collections import defaultdict
+from collections import defaultdict, deque
 from itertools import cycle
+
+import signal
+
+@partial(signal.signal, signal.SIGINT)
+def kill_process():
+    os.kill(os.getpid(), signal.SIGKILL)
+
 
 class default(object):
     ''' this class is used as a shared namespace for queued's defaults '''
     logger=logging.exception
     workers=1
 
-job_counter = defaultdict(int)
-    
-def new_job(fn):
-    job_counter[getattr(fn, 'func', fn)]+=1
-    
-def finished_job(fn):
-    job_counter[getattr(fn, 'func', fn)]+=-1
-    
-def workers_are_busy():
-    return any(job_counter.values())
+class task_collection(set):
+    ''' this is used as a storage for threading tasks to identify when all
+        async tasks have been finished '''
+    def __init__(self):
+        set.__init__(self)
+        self.autocleaning = False
+        self.autoclean_thread = Thread(target=self.autoclean)
+        self.autoclean_thread.setDaemon(True)
+        self.lock = Lock()
+        self.start_autoclean()
+    def toggle(self, target, add=False):
+        with self.lock:
+            (self.add if add else self.discard)(target)
+    def store(self, target):
+        self.toggle(target, True)
+    def delete(self, target):
+        self.toggle(target, False)
+    def clean(self):
+        if len(self):
+            with self.lock:
+                l = list(self)
+            for task in l:
+                if task.ready():
+                    self.delete(task)
+    def autoclean(self):
+        if self.autocleaning:
+            raise Exception('task_collection is already autocleaning')
+        while 1:
+            sleep(6)
+            self.clean()
+    def start_autoclean(self):
+        self.autoclean_thread.start()
+    @property
+    def has_unfinished_tasks(self):
+        ''' returns true if there are still unfinished jobs in self '''
+        self.clean()
+        return bool(len(tasks))
 
-def wait_for_queues_to_finish():
-    while workers_are_busy():
+tasks = task_collection()
+
+def store_task(task, tasks=tasks):
+    tasks.store(task)
+
+def wait_for_queues_to_finish(tasks=tasks):
+    while tasks.has_unfinished_tasks:
         sleep(0.2)
 
 atexit.register(wait_for_queues_to_finish)
@@ -38,7 +78,7 @@ def call(fn, logger):
     with logged_exceptions(logger):
         fn()
     finished_job(fn)
-    
+
 def queued(fn, workers=1, logger=default.logger):
     assert callable(fn), 'fn needs to be callable'
     assert type(workers)==int
@@ -46,17 +86,15 @@ def queued(fn, workers=1, logger=default.logger):
     assert not isgeneratorfunction(fn)
     pool = ThreadPool(workers)
     return wraps(fn)(
-        lambda *a, **k: [
-            new_job(fn), 
-            pool.starmap_async(call, [[partial(fn, *a, **k), logger]])
-        ]
+        #lambda *a, **k: store_task(pool.apply_async(call, (partial(fn, *a, **k), logger)))
+        lambda *a, **k: store_task(pool.apply_async(call, (partial(fn, *a, **k), logger)))
     )
 
 @overload
 def queued(fn, workers=default.workers, logger=default.logger):
     ''' this adapts queued to accept generator functions as a valid input '''
     assert isgeneratorfunction(fn)
-    # multiple generator workers means starting multiple generators since they are 
+    # multiple generator workers means starting multiple generators since they are
     # sequential state machines and cant run non-linearly
     _gens = [fn().send for _ in range(workers)]
     # start each generator
@@ -74,14 +112,15 @@ def queued(fn, workers=default.workers, logger=default.logger):
         else:
             next_worker()(args)
     return dispatcher
-    
-    
+
+
 @overload
 def queued(workers=1, logger=default.logger):
     ''' this adapts queued to take arguments before wrapping a function '''
     assert type(workers)==int
     assert workers>1
     return partial(queued, workers=workers, logger=logger)
+
 
 def test():
     ''' this tests/demos different uses of queued '''
