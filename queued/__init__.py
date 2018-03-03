@@ -16,7 +16,7 @@ from itertools import cycle
 import signal
 
 @partial(signal.signal, signal.SIGINT)
-def kill_process():
+def kill_process(*args):
     os.kill(os.getpid(), signal.SIGKILL)
 
 
@@ -86,8 +86,7 @@ def queued(fn, workers=1, logger=default.logger):
     assert not isgeneratorfunction(fn)
     pool = ThreadPool(workers)
     return wraps(fn)(
-        #lambda *a, **k: store_task(pool.apply_async(call, (partial(fn, *a, **k), logger)))
-        lambda *a, **k: store_task(pool.apply_async(call, (partial(fn, *a, **k), logger)))
+        lambda *a, **k: (store_task(pool.apply_async(call, (partial(fn, *a, **k), logger))), pool._cache.clear())[0]
     )
 
 @overload
