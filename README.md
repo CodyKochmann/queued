@@ -3,7 +3,9 @@ Simple function decorators that make Python functions and generators queued and 
 
 ### How to Install?
 
-```pip install queued```
+```bash
+pip install queued
+```
 
 ### How to use it?
 
@@ -17,30 +19,32 @@ def result_logger(input_string):
 
 result_logger('yay Im loggin!')
 ```
----
+
+<!--
 
 > before we add edits
-> 
+>
 > ### What does it do?
-> 
-> Decorating a function with `@queued` two new things happen: 
-> 
+>
+> Decorating a function with `@queued` two new things happen:
+>
 > 1. The decorated function in a separate thread becomes nonblocking
 > 2. The function running in the background thread gains a queue.
 
----
+-->
 
 ### What does it do?
 
 Decorating a function with `@queued` by default does two things:
 
-1. the decorated function is placed in a separate thread to make it nonblocking
-2. A queue is built that acts as a task buffer for the background task
+1. The decorated function is placed in a separate thread and becomes nonblocking.
+2. The now backgrounded function is now fed inputs through a queue.
 
 ### What is the benefit?
 
 `queued` allows you to put functions that have blocking operations in the background so your main thread or process can focus on the main task. This is beneficial for functions that you don't need the return value from, like logging. Since queues preserve order though, you'll still get the sequential benefits of straight line programming without the unordered mess or memory consumption that comes from just spawning off a background thread to do some job in the background.
 
+<!--
 ### Does this support background processes if you don't want the background job running on the same core?
 
 Yes. The `multiprocessing` argument provides you with the option to send the background job to run in another process instead of a different thread.
@@ -56,6 +60,7 @@ def result_logger(input_string):
 
 result_logger('yay Im loggin!')
 ```
+-->
 
 ### Can I have multiple worker threads/processes for a `queued` function?
 
@@ -83,7 +88,7 @@ Yes, the `max_size` argument allows you to limit the number of items that are in
 from queued import queued
 
 # all calls to result_logger will be non-blocking unless
-# the background job has 10 objects in its queue 
+# the background job has 10 objects in its queue
 @queued(max_size=10)
 def result_logger(input_string):
     with open('my_result.log', 'a') as f:
@@ -106,7 +111,7 @@ def result_logger(input_string):
     with open('my_result.log', 'a') as f:
         f.write(input_string + '\n')
 
-# this will download links in the background 
+# this will download links in the background
 # and send error messages to result_logger
 @queued(logger=result_logger)
 def download(file_path, url):
@@ -117,14 +122,8 @@ def download(file_path, url):
 download('/tmp/google.html', 'https://google.com')
 ```
 
+<!--
 ### Can I control the consumption rate of the queues to make the function work in batches?
 
 Yes, but I'm bored writing documentation.
-
-
-
-
-
-
-
-
+-->
