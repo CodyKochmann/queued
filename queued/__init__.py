@@ -1,168 +1,155 @@
-import os, sys
-sys.path.append(os.path.dirname(os.path.realpath(__file__)))
-
 from functools import wraps, partial
-from multiprocessing.pool import ThreadPool
-from threading import Thread, Lock
-from inspect import isgeneratorfunction
-from strict_functions import strict_globals, overload
-from greater_context import logged_exceptions
-import logging
-import atexit
+from logging import exception
+from queue import Queue
+from strict_functions import overload
+from threading import Thread
 from time import sleep
-from collections import defaultdict, deque
-from itertools import cycle
+from atexit import register
+from gc import collect
+from signal import signal, SIGINT, SIGKILL
+from os import kill, getpid
+import threading
 
-import signal
-
-@partial(signal.signal, signal.SIGINT)
+@partial(signal, SIGINT)
 def kill_process(*args):
-    os.kill(os.getpid(), signal.SIGKILL)
+    kill(getpid(), SIGKILL)
 
+class IterableQueue(Queue):
+    ''' exactly like queue.Queue, except this ones input can be iterated '''
+    def __iter__(self):
+        try:
+            for i in iter(self.get, (SystemExit,'_waffles')):
+                yield i
+                self.task_done()
+        finally:
+            self.task_done()
 
-class default(object):
-    ''' this class is used as a shared namespace for queued's defaults '''
-    logger=logging.exception
-    workers=1
+class STORAGE(object):
+    settings={
+        'maxsize':0,
+        'workers':1,
+        'restart':True,
+        'logger':exception
+    }
+    queues=[]
+    threads=[]
 
-class task_collection(set):
-    ''' this is used as a storage for threading tasks to identify when all
-        async tasks have been finished '''
-    def __init__(self):
-        set.__init__(self)
-        self.autocleaning = False
-        self.autoclean_thread = Thread(target=self.autoclean)
-        self.autoclean_thread.setDaemon(True)
-        self.lock = Lock()
-        self.start_autoclean()
-    def toggle(self, target, add=False):
-        with self.lock:
-            (self.add if add else self.discard)(target)
-    def store(self, target):
-        self.toggle(target, True)
-    def delete(self, target):
-        self.toggle(target, False)
-    def clean(self):
-        if len(self):
-            with self.lock:
-                l = list(self)
-            for task in l:
-                if task.ready():
-                    self.delete(task)
-    def autoclean(self):
-        if self.autocleaning:
-            raise Exception('task_collection is already autocleaning')
-        while 1:
-            sleep(6)
-            self.clean()
-    def start_autoclean(self):
-        self.autoclean_thread.start()
-    @property
-    def has_unfinished_tasks(self):
-        ''' returns true if there are still unfinished jobs in self '''
-        self.clean()
-        return bool(len(tasks))
+def queue_sizes():
+    return [q.unfinished_tasks for q in STORAGE.queues]
 
-tasks = task_collection()
+def finish_tasks(kill_threads=False):
+    # wait for all tasks to finish
+    while sum(q.unfinished_tasks for q in STORAGE.queues):
+        #print('+',sum(queue_sizes()))
+        #print(queue_sizes())
+        sleep(0.1)
+    # then kill all threads
+    if kill_threads:
+        for t in STORAGE.threads:
+            t._tstate_lock.release()
+            t.join()
+            t._delete()
+            try:
+                del threading._active[t.ident]
+            except:
+                pass
+        STORAGE.threads = []
+        STORAGE.queues = []
+        collect(1)
 
-def store_task(task, tasks=tasks):
-    tasks.store(task)
+register(partial(finish_tasks, True))
 
-def wait_for_queues_to_finish(tasks=tasks):
-    while tasks.has_unfinished_tasks:
-        sleep(0.2)
+def start_queue_worker(fn, q, restart, logger):
+    assert callable(fn)
+    assert isinstance(q, IterableQueue)
+    assert isinstance(restart, bool)
+    assert callable(logger)
 
-atexit.register(wait_for_queues_to_finish)
+    if restart:
+        def runner():
+            while 1:
+                try:
+                    fn(q)
+                except Exception as ex:
+                    logger(ex)
+                    sleep(0.1)
+    else:
+        def runner():
+            try:
+                fn(q)
+            except Exception as ex:
+                logger(ex)
 
-def call(fn, logger):
-    with logged_exceptions(logger):
-        fn()
-    finished_job(fn)
-
-def queued(fn, workers=1, logger=default.logger):
-    assert callable(fn), 'fn needs to be callable'
-    assert type(workers)==int
-    assert workers>0
-    assert not isgeneratorfunction(fn)
-    pool = ThreadPool(workers)
-    return wraps(fn)(
-        lambda *a, **k: (store_task(pool.apply_async(call, (partial(fn, *a, **k), logger))), pool._cache.clear())[0]
-    )
-
-@overload
-def queued(fn, workers=default.workers, logger=default.logger):
-    ''' this adapts queued to accept generator functions as a valid input '''
-    assert isgeneratorfunction(fn)
-    # multiple generator workers means starting multiple generators since they are
-    # sequential state machines and cant run non-linearly
-    _gens = [fn().send for _ in range(workers)]
-    # start each generator
-    {i(None) for i in _gens}
-    # turn each function into a queued service
-    worker_queues=[queued(i, logger=logger) for i in _gens]
-    # make a round-robin dispatcher for the generator workers
-    def next_worker(cycler=cycle(worker_queues)):
-        return next(cycler)
-    @wraps(fn)
-    @queued # the dispatcher needs to be a single threaded queue
-    def dispatcher(*args): # sending to generators is only positional
-        if len(args)==1:
-            next_worker()(*args)
-        else:
-            next_worker()(args)
-    return dispatcher
-
+    t=Thread(target=runner)
+    STORAGE.threads.append(t)
+    t.start()
 
 @overload
-def queued(workers=1, logger=default.logger):
-    ''' this adapts queued to take arguments before wrapping a function '''
-    assert type(workers)==int
-    assert workers>1
-    return partial(queued, workers=workers, logger=logger)
+def queued(firin, settings={}):
+    assert isinstance(settings, dict)
+    assert callable(firin)
+    if not settings:
+        settings=STORAGE.settings
+
+    q = IterableQueue(maxsize=settings['maxsize'])
+    STORAGE.queues.append(q)
+
+    for _ in range(settings['workers']):
+        start_queue_worker(
+            firin,
+            q,
+            settings['restart'],
+            settings['logger']
+        )
+
+    @wraps(firin)
+    def imma_firin(mah_lazarz):
+        ''' this replacces the function with q.put but preserves docstrings of the wrapped function '''
+        q.put(mah_lazarz)
+
+    return imma_firin
+
+@overload
+def queued(maxsize=0, workers=1, restart=False, logger=exception):
+    assert isinstance(maxsize, int) and maxsize>=0
+    assert isinstance(workers, int) and workers>0
+    assert isinstance(restart, bool)
+    assert callable(logger)
+    return partial(
+        queued,
+        settings={
+            'maxsize':maxsize,
+            'workers':workers,
+            'restart':restart,
+            'logger':logger
+        })
 
 
-def test():
-    ''' this tests/demos different uses of queued '''
-    @queued
-    def my_adder(a, b):
-        ''' my_adder as a nonblocking function '''
-        sleep(1)
-        c=a+b
-        print(('adder',a,b,c))
-
-    @queued
-    def adder_gen():
-        ''' my_adder as a nonblocking coroutine '''
-        while 1:
-            a, b = yield
-            with logged_exceptions():
-                c=a+b
-                print(('gen',a,b,c))
-
-    @queued(workers=3)
-    def three_adder_gen():
-        ''' this as a nonblocking coroutine run under three working generators '''
-        while 1:
-            a, b = yield
-            c=a+b
-            print(('three_adder_gen',a,b,c))
-
-    @queued(workers=3)
-    def three_adders(a, b):
-        ''' my_adder with multiple workers '''
-        #print('three_adders',locals())
-        sleep(1)
-        c=a+b
-        print(('three',a,b,c))
-        #my_adder(a,b)
-        #my_adder(b,c)
-
-    for i in range(10):
-        my_adder(i, i*2)
-        adder_gen(i, i*2)
-        three_adders(i, i*2)
-        three_adder_gen(i, i*2)
 
 if __name__ == '__main__':
-    # run the demo if this is the script being ran
-    test()
+    @queued
+    def add(queued_items):
+        total = 0
+        for i in queued_items:
+            total += i
+            print(total)
+
+    @queued(maxsize=0, workers=10)
+    def add_parallel(queued_items):
+        total = 0
+        for i in queued_items:
+            sleep(3)
+            total += i
+            print(total)
+
+    for i in range(30):
+        add(i)
+        add_parallel(i)
+
+    add('hi')
+    add(5)
+    add(5)
+    print('finishing')
+    finish_tasks()
+    print('finished')
+    exit()
