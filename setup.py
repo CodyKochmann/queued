@@ -1,6 +1,6 @@
 from distutils.core import setup
 
-version = '2018.5.20'
+version = '2018.5.20.1'
 
 setup(
   name = 'queued',

@@ -110,7 +110,7 @@ def queued(firin, settings={}):
     return imma_firin
 
 @overload
-def queued(maxsize=0, workers=1, restart=False, logger=exception):
+def queued(maxsize=0, workers=1, restart=True, logger=exception):
     assert isinstance(maxsize, int) and maxsize>=0
     assert isinstance(workers, int) and workers>0
     assert isinstance(restart, bool)
