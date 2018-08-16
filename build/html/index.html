@@ -1,0 +1,190 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Queued: Async Python, Simplified &#8212; queued 2018.5.20.1 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="queued-async-python-simplified">
+<span id="queued-async-python-simplified"></span><h1>Queued: Async Python, Simplified<a class="headerlink" href="#queued-async-python-simplified" title="Permalink to this headline">¶</a></h1>
+<p>Queued is an open source async library, written in Python, that rethinks how we should write consumer/producer style code.</p>
+<div class="section" id="how-to-install">
+<span id="how-to-install"></span><h2>How to Install?<a class="headerlink" href="#how-to-install" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip install queued
+</pre></div>
+</div>
+</div>
+<div class="section" id="how-to-use-it">
+<span id="how-to-use-it"></span><h2>How to use it?<a class="headerlink" href="#how-to-use-it" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">queued</span> <span class="kn">import</span> <span class="n">queued</span>
+
+<span class="nd">@queued</span>
+<span class="k">def</span> <span class="nf">mah_high_performance_log</span><span class="p">(</span><span class="n">queued_items</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39; this logs input to a file in the background &#39;&#39;&#39;</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;my_result.log&#39;</span><span class="p">,</span> <span class="s1">&#39;a&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">queued_items</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;{}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">item</span><span class="p">))</span>
+
+<span class="n">mah_high_performance_log</span><span class="p">(</span><span class="s1">&#39;yay Im loggin!&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="what-does-it-do">
+<span id="what-does-it-do"></span><h2>What does it do?<a class="headerlink" href="#what-does-it-do" title="Permalink to this headline">¶</a></h2>
+<p>Decorating a function with <code class="docutils literal notranslate"><span class="pre">&#64;queued</span></code> by default does two things:</p>
+<ol class="simple">
+<li>The decorated function is placed in a separate thread and becomes nonblocking.</li>
+<li>The now backgrounded function is now fed inputs through a queue.</li>
+</ol>
+</div>
+<div class="section" id="what-is-the-benefit">
+<span id="what-is-the-benefit"></span><h2>What is the benefit?<a class="headerlink" href="#what-is-the-benefit" title="Permalink to this headline">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">queued</span></code> allows you to put functions that have blocking operations in the background so your main thread or process can focus on the main task. This is beneficial for functions that you don’t need the return value from, like logging. Since queues preserve order though, you’ll still get the sequential benefits of straight line programming without the unordered mess or memory consumption that comes from just spawning off a background thread to do some job in the background.</p>
+</div>
+<div class="section" id="can-i-have-multiple-worker-threads-processes-for-a-queued-function">
+<span id="can-i-have-multiple-worker-threads-processes-for-a-queued-function"></span><h2>Can I have multiple worker threads/processes for a <code class="docutils literal notranslate"><span class="pre">queued</span></code> function?<a class="headerlink" href="#can-i-have-multiple-worker-threads-processes-for-a-queued-function" title="Permalink to this headline">¶</a></h2>
+<p>Yes. Feeding <code class="docutils literal notranslate"><span class="pre">queued</span></code> the <code class="docutils literal notranslate"><span class="pre">workers</span></code> argument will tell <code class="docutils literal notranslate"><span class="pre">queued</span></code> to create however many threads or processes you want to have watching the queue that feeds your function. CAUTION - This does mean that you will need to consider syncing issues for certain operations.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">queued</span> <span class="kn">import</span> <span class="n">queued</span>
+<span class="kn">from</span> <span class="nn">requests</span> <span class="kn">import</span> <span class="n">get</span>
+
+<span class="c1"># this will download up to 4 files at the same time</span>
+<span class="nd">@queued</span><span class="p">(</span><span class="n">workers</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">download</span><span class="p">(</span><span class="n">queued_items</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">file_path</span><span class="p">,</span> <span class="n">url</span> <span class="ow">in</span> <span class="n">queued_items</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">)</span><span class="o">.</span><span class="n">iter_content</span><span class="p">():</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
+
+<span class="n">download</span><span class="p">((</span><span class="s1">&#39;/tmp/google.html&#39;</span><span class="p">,</span> <span class="s1">&#39;https://google.com&#39;</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="can-i-limit-the-size-of-the-queues-of-each-function">
+<span id="can-i-limit-the-size-of-the-queues-of-each-function"></span><h2>Can I limit the size of the queues of each function?<a class="headerlink" href="#can-i-limit-the-size-of-the-queues-of-each-function" title="Permalink to this headline">¶</a></h2>
+<p>Yes, the <code class="docutils literal notranslate"><span class="pre">maxsize</span></code> argument allows you to limit the number of items that are in a function’s queue. If you top off the queue, the main thread will wait for the background thread/process to make room in the queue. This is handy if you have memory consumption concerns</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">queued</span> <span class="kn">import</span> <span class="n">queued</span>
+
+<span class="c1"># all calls to result_logger will be non-blocking unless</span>
+<span class="c1"># the background job has 10 objects in its queue</span>
+<span class="nd">@queued</span><span class="p">(</span><span class="n">maxsize</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">result_logger</span><span class="p">(</span><span class="n">queued_items</span><span class="p">):</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;my_result.log&#39;</span><span class="p">,</span> <span class="s1">&#39;a&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">input_string</span> <span class="ow">in</span> <span class="n">queued_items</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">input_string</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+<span class="n">result_logger</span><span class="p">(</span><span class="s1">&#39;yay Im loggin!&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="what-happens-when-a-queued-function-crashes">
+<span id="what-happens-when-a-queued-function-crashes"></span><h2>What happens when a queued function crashes?<a class="headerlink" href="#what-happens-when-a-queued-function-crashes" title="Permalink to this headline">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">queued</span></code> will log the error. If you want to specify the logger function that you want to send the log messages to, use the <code class="docutils literal notranslate"><span class="pre">logger</span></code> argument. By default <code class="docutils literal notranslate"><span class="pre">logger=logging.warning</span></code>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">queued</span> <span class="kn">import</span> <span class="n">queued</span>
+<span class="kn">from</span> <span class="nn">requests</span> <span class="kn">import</span> <span class="n">get</span>
+
+<span class="c1"># this logs to a file in the background</span>
+<span class="nd">@queued</span>
+<span class="k">def</span> <span class="nf">custom_error_logger</span><span class="p">(</span><span class="n">queued_items</span><span class="p">):</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;my_result.log&#39;</span><span class="p">,</span> <span class="s1">&#39;a&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">input_string</span> <span class="ow">in</span> <span class="n">queued_items</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">input_string</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+<span class="c1"># this will download links in the background</span>
+<span class="c1"># and send error messages to result_logger</span>
+<span class="nd">@queued</span><span class="p">(</span><span class="n">logger</span><span class="o">=</span><span class="n">custom_error_logger</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">download</span><span class="p">(</span><span class="n">queued_items</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">file_path</span><span class="p">,</span> <span class="n">url</span> <span class="ow">in</span> <span class="n">queued_items</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">)</span><span class="o">.</span><span class="n">iter_content</span><span class="p">():</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
+
+<span class="n">download</span><span class="p">((</span><span class="s1">&#39;/tmp/google.html&#39;</span><span class="p">,</span> <span class="s1">&#39;https://google.com&#39;</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="#">queued</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="#">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, Cody Kochmann.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.7.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.11</a>
+      
+      |
+      <a href="_sources/index.md.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
