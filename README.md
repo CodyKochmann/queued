@@ -1,4 +1,9 @@
 # queued
+
+[![Downloads](https://pepy.tech/badge/queued)](https://pepy.tech/project/queued)
+[![Downloads](https://pepy.tech/badge/queued/month)](https://pepy.tech/project/queued)
+[![Downloads](https://pepy.tech/badge/queued/week)](https://pepy.tech/project/queued)
+
 Simple function decorators that make Python functions and generators queued and async for nonblocking operations
 
 ### How to Install?
