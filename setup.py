@@ -1,17 +1,17 @@
 from distutils.core import setup
 
-version = '2018.5.20.1'
+version = '2019.11.30'
 
 setup(
   name = 'queued',
   packages = ['queued'], # this must be the same as the name above
   version = version,
   install_requires = ["strict_functions","greater_context"],
-  description = 'simple function decorators that make python functions and generators queued and async for nonblocking operations',
+  description = 'turn python functions into mini high performance microservices',
   author = 'Cody Kochmann',
   author_email = 'kochmanncody@gmail.com',
   url = 'https://github.com/CodyKochmann/queued',
   download_url = 'https://github.com/CodyKochmann/queued/tarball/{}'.format(version),
-  keywords = ['queued', 'queue', 'async', 'nonblocking', 'blocking', 'thread', 'multiprocessing', 'parallel'],
-  classifiers = [],
+  keywords = ['queued', 'queue', 'async', 'nonblocking', 'blocking', 'thread', 'multiprocessing', 'parallel', 'message', 'event', 'push', 'microservice', 'microservices', 'performance'],
+  classifiers = []
 )
