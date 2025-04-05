@@ -1,3 +1,5 @@
+queued/ linguist-language=Python
 build/ * linguist-vendored
 dist/ * linguist-vendored
 source/ * linguist-vendored
+
